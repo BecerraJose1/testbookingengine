@@ -238,9 +238,14 @@ class RoomDetailsView(View):
 
 class RoomsView(View):
     def get(self, request):
-        # renders a list of rooms
-        rooms = Room.objects.all().values("name", "room_type__name", "id")
+        query = request.GET.get("q")
+        rooms = Room.objects.all()
+        if query:
+            rooms = rooms.filter(name__icontains=query)
+
+        rooms = rooms.values("name", "room_type__name", "id")
         context = {
             'rooms': rooms
         }
         return render(request, "rooms.html", context)
+
