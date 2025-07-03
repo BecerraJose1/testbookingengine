@@ -95,18 +95,32 @@ class HomeView(View):
 class BookingView(View):
     @method_decorator(ensure_csrf_cookie)
     def post(self, request, pk):
-        # check if customer form is ok
         customer_form = CustomerForm(request.POST, prefix="customer")
         if customer_form.is_valid():
-            # save customer data
             customer = customer_form.save()
-            # add the customer id to the booking form
+
+            checkin_str = request.POST.get("booking-checkin")
+            checkout_str = request.POST.get("booking-checkout")
+
+            from datetime import datetime
+            checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+            checkout = datetime.strptime(checkout_str, "%Y-%m-%d").date()
+
+            days = (checkout - checkin).days
+            if days <= 0:
+                return redirect("/")
+
+            room = Room.objects.get(id=pk)
+            total = days * room.room_type.price
+
             temp_POST = request.POST.copy()
             temp_POST.update({
                 'booking-customer': customer.id,
                 'booking-room': pk,
-                'booking-code': generate.get()})
-            # if ok, save booking data
+                'booking-code': generate.get(),
+                'booking-total': total
+            })
+
             booking_form = BookingForm(temp_POST, prefix="booking")
             if booking_form.is_valid():
                 booking_form.save()
@@ -173,6 +187,34 @@ class EditBookingView(View):
             customer_form.save()
             return redirect("/")
 
+class EditBookingDatesView(View):
+    def get(self, request, pk):
+        booking = Booking.objects.get(id=pk)
+        form = BookingDateForm(instance=booking)
+        return render(request, "edit_booking_dates.html", {"form": form, "booking": booking})
+
+    def post(self, request, pk):
+        booking = Booking.objects.get(id=pk)
+        form = BookingDateForm(request.POST, instance=booking)
+
+        if form.is_valid():
+            new_checkin = form.cleaned_data["checkin"]
+            new_checkout = form.cleaned_data["checkout"]
+
+            overlapping = Booking.objects.filter(
+                room=booking.room,
+                state="NEW",
+                checkin__lt=new_checkout,
+                checkout__gt=new_checkin
+            ).exclude(id=booking.id)
+
+            if overlapping.exists():
+                form.add_error(None, "No hay disponibilidad para las fechas seleccionadas")
+            else:
+                form.save()
+                return redirect("/")
+
+        return render(request, "edit_booking_dates.html", {"form": form, "booking": booking})
 
 class DashboardView(View):
     def get(self, request):

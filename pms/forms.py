@@ -4,7 +4,10 @@ from django.forms import ModelForm
 
 from .models import Booking, Customer
 
-
+class BookingDateForm(forms.ModelForm):
+    class Meta:
+        model = Booking
+        fields = ['checkin', 'checkout']
 class RoomSearchForm(ModelForm):
     class Meta:
         model = Booking
